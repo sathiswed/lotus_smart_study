@@ -1,0 +1,12 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+sqlalchemy[asyncio]>=2.0,<3
+asyncpg>=0.30,<1
+alembic>=1.14,<2
+pydantic-settings>=2.7,<3
+python-multipart>=0.0.20,<1
+boto3>=1.36,<2
+Pillow>=11,<12
+openai>=1.60,<2
+httpx>=0.28,<1
+pypdf>=6,<7
