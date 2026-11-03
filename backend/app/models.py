@@ -133,6 +133,8 @@ class StudentProfile(Base):
     class_level: Mapped[int] = mapped_column(Integer, default=8)
     email: Mapped[str | None] = mapped_column(String(320))
     mobile: Mapped[str | None] = mapped_column(String(32))
+    school_name: Mapped[str | None] = mapped_column(String(255))
+    school_location: Mapped[str | None] = mapped_column(String(255))
     user: Mapped[User] = relationship()
 
 

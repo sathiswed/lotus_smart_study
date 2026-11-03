@@ -1,13 +1,14 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Curriculum, ManagedStudent, StudentCredentials, StudentListResponse, StudentStatus } from "@/lib/types";
 import { Empty, Notice, Pill, Spinner } from "@/components/Ui";
 
 const PAGE_SIZE = 25;
-type StudentForm = { name: string; email: string; mobile: string; curriculum_id: string; class_level: number };
-const EMPTY_FORM: StudentForm = { name: "", email: "", mobile: "", curriculum_id: "", class_level: 8 };
+type StudentForm = { name: string; email: string; mobile: string; school_name: string; school_location: string; curriculum_id: string; class_level: number };
+const EMPTY_FORM: StudentForm = { name: "", email: "", mobile: "", school_name: "", school_location: "", curriculum_id: "", class_level: 8 };
 
 function usesEmailLogin(student: ManagedStudent) {
   return student.email !== null && student.login_identifier === student.email;
@@ -63,7 +64,7 @@ export default function StudentsPage() {
       const response = await api<{ student: ManagedStudent }>(`/teacher/students/${student.id}`);
       const current = response.student;
       setEditing(current);
-      setForm({ name: current.name, email: current.email ?? "", mobile: current.mobile ?? "", curriculum_id: current.curriculum_id, class_level: current.class_level });
+      setForm({ name: current.name, email: current.email ?? "", mobile: current.mobile ?? "", school_name: current.school_name ?? "", school_location: current.school_location ?? "", curriculum_id: current.curriculum_id, class_level: current.class_level });
       setFormError(""); setFormOpen(true);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Student details could not be loaded");
@@ -73,12 +74,13 @@ export default function StudentsPage() {
   async function saveStudent(event: FormEvent) {
     event.preventDefault(); setFormError(""); setSuccess("");
     const name = form.name.trim(); const email = form.email.trim().toLowerCase(); const mobile = form.mobile.trim();
+    const schoolName = form.school_name.trim(); const schoolLocation = form.school_location.trim();
     if (!name) { setFormError("Student name is required."); return; }
     if (!email) { setFormError("Student email is required and will be used to sign in."); return; }
     if (!form.curriculum_id) { setFormError("Select the student's board and class curriculum."); return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setFormError("Enter a valid email address."); return; }
     setSaving(true);
-    const body = JSON.stringify({ name, email, mobile: mobile || null, curriculum_id: form.curriculum_id, class_level: form.class_level });
+    const body = JSON.stringify({ name, email, mobile: mobile || null, school_name: schoolName || null, school_location: schoolLocation || null, curriculum_id: form.curriculum_id, class_level: form.class_level });
     try {
       if (editing) {
         await api<{ student: ManagedStudent }>(`/teacher/students/${editing.id}`, { method: "PATCH", body });
@@ -137,8 +139,8 @@ export default function StudentsPage() {
     <section className="card" style={{ marginTop: "1rem" }}>
       {loading && items !== null && <p className="muted" aria-live="polite">Refreshing students...</p>}
       {loading && items === null ? <Spinner label="Loading students..." /> : !items?.length ? <Empty>No students match the current filters.</Empty> : <div className="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Login ID</th><th>Class</th><th>Status</th><th>Created date</th><th>Actions</th></tr></thead>
-        <tbody>{items.map(student => <tr key={student.id}><td><strong>{student.name}</strong>{student.mobile && <small className="student-contact">{student.mobile}</small>}</td><td><code>{student.login_identifier}</code>{!usesEmailLogin(student) && <small className="student-contact legacy-login">Legacy login - email required when editing</small>}</td><td>{student.board === "state" ? `State (${student.state_code})` : student.board.toUpperCase()} · Class {student.class_level}</td><td><Pill>{student.status}</Pill></td><td>{new Date(student.created_at).toLocaleDateString()}</td><td><div className="actions"><button className="secondary" disabled={actionId === student.id} onClick={() => void openEdit(student)}>Edit</button><button className="secondary" disabled={actionId === student.id} onClick={() => void resetPassword(student)}>Reset password</button><button className={student.status === "active" ? "danger" : "secondary"} disabled={actionId === student.id} onClick={() => void changeStatus(student)}>{student.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>)}</tbody>
+        <thead><tr><th>Name</th><th>Login ID</th><th>Class</th><th>School</th><th>Status</th><th>Created date</th><th>Actions</th></tr></thead>
+        <tbody>{items.map(student => <tr key={student.id}><td><strong>{student.name}</strong>{student.mobile && <small className="student-contact">{student.mobile}</small>}</td><td><code>{student.login_identifier}</code>{!usesEmailLogin(student) && <small className="student-contact legacy-login">Legacy login - email required when editing</small>}</td><td>{student.board === "state" ? `State (${student.state_code})` : student.board.toUpperCase()} · Class {student.class_level}</td><td>{student.school_name || <span className="muted">Not provided</span>}{student.school_location && <small className="student-contact">{student.school_location}</small>}</td><td><Pill>{student.status}</Pill></td><td>{new Date(student.created_at).toLocaleDateString()}</td><td><div className="actions"><button className="secondary" disabled={actionId === student.id} onClick={() => void openEdit(student)}>Edit</button><Link className="button secondary" href={`/teacher/history?student_id=${student.id}`}>Test history</Link><button className="secondary" disabled={actionId === student.id} onClick={() => void resetPassword(student)}>Reset password</button><button className={student.status === "active" ? "danger" : "secondary"} disabled={actionId === student.id} onClick={() => void changeStatus(student)}>{student.status === "active" ? "Deactivate" : "Activate"}</button></div></td></tr>)}</tbody>
       </table></div>}
       {items && total > 0 && <div className="student-pagination"><span>{offset + 1}-{Math.min(offset + items.length, total)} of {total}</span><div className="actions"><button className="secondary" disabled={offset === 0 || loading} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}>Previous</button><button className="secondary" disabled={offset + items.length >= total || loading} onClick={() => setOffset(value => value + PAGE_SIZE)}>Next</button></div></div>}
     </section>
@@ -146,6 +148,7 @@ export default function StudentsPage() {
       <div><p className="eyebrow">Student record</p><h2 id="student-form-title">{editing ? "Edit student" : "Add student"}</h2></div>{formError && <Notice kind="error">{formError}</Notice>}
       <label>Name<input required maxLength={200} value={form.name} onChange={event => setForm(value => ({ ...value, name: event.target.value }))} /></label>
       <div className="grid two"><label>Email<input type="email" autoComplete="email" required maxLength={320} value={form.email} onChange={event => setForm(value => ({ ...value, email: event.target.value }))} /></label><label>Mobile (optional)<input type="tel" maxLength={30} value={form.mobile} onChange={event => setForm(value => ({ ...value, mobile: event.target.value }))} /></label></div>
+      <div className="grid two"><label>School name (optional)<input maxLength={255} value={form.school_name} onChange={event => setForm(value => ({ ...value, school_name: event.target.value }))} /></label><label>School location (optional)<input maxLength={255} value={form.school_location} onChange={event => setForm(value => ({ ...value, school_location: event.target.value }))} /></label></div>
       <label>Board and class<select required value={form.curriculum_id} onChange={event => { const selected = curricula.find(item => item.id === event.target.value); setForm(value => ({ ...value, curriculum_id: event.target.value, class_level: selected?.class_level ?? value.class_level })); }}><option value="">Choose curriculum</option>{curricula.map(item => <option key={item.id} value={item.id}>{item.board === "state" ? `State Board (${item.state_code})` : item.board.toUpperCase()} - Class {item.class_level}</option>)}</select></label><p className="muted">The normalized email address is the student's login. Curriculum changes affect future assignment eligibility but preserve academic history. {editing && !usesEmailLogin(editing) ? "This legacy account will be converted to email login when saved." : !editing ? "A temporary password will be shown once after creation." : "Changing the email preserves the student's academic history."}</p>
       <div className="actions"><button type="button" className="secondary" disabled={saving} onClick={() => { setFormOpen(false); setEditing(null); setFormError(""); }}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving..." : editing ? "Save changes" : "Create student"}</button></div>
     </form></dialog></div>}

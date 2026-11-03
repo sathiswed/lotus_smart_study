@@ -86,28 +86,33 @@ Teacher question DTO includes `reference_answer`, `correct_option_id`, scope/pro
 ## Tests and publication
 
 - `POST /tests` `{generation_batch_id, title, instructions, question_ids, student_ids}` -> Draft test.
+- `GET /tests` lists every teacher-owned Draft/Published test with curriculum,
+  assignment count, and attempt count.
 - `GET /tests/{test_id}` -> teacher-owned Draft/Published test with ordered teacher snapshots.
 - `PATCH /tests/{test_id}` edits title/instructions/question order/student assignments only while Draft.
+- `POST /tests/{test_id}/assignments` adds active, curriculum-eligible students
+  to either a Draft or Published test. It is idempotent and never removes or
+  replaces existing assignments or attempts.
 - `GET /students?curriculum_id=` -> active eligible students for direct assignment.
 - `POST /tests/{test_id}/publish` validates non-empty Approved questions and assignments, freezes snapshots, calculates total marks, and returns Published test. Repeated calls return the same Published resource.
 
 ## Student management
 
 All endpoints below require a teacher session. Student DTOs contain
-`{id, name, login_identifier, email, mobile, curriculum_id, board, state_code, class_level, status, created_at, updated_at}`
+`{id, name, login_identifier, email, mobile, school_name, school_location, curriculum_id, board, state_code, class_level, status, created_at, updated_at}`
 and never contain a password hash.
 
 - `GET /teacher/students?search=&status=&limit=&offset=` returns
   `{items, total, limit, offset}`. Search covers name and login ID; status is
   `active` or `inactive` when supplied.
-- `POST /teacher/students` accepts `{name, email, mobile?, curriculum_id, class_level}` and
+- `POST /teacher/students` accepts `{name, email, mobile?, school_name?, school_location?, curriculum_id, class_level}` and
   returns `{student, temporary_password}`. Email is normalized to lowercase,
   is unique case-insensitively, and becomes the student's login ID. The initial
   password is the lowercase first name plus `123A#`; it is marked temporary,
   returned only in this response, and only its hash is persisted.
 - `GET /teacher/students/{student_id}` returns `{student}`.
 - `PATCH /teacher/students/{student_id}` accepts a partial update containing
-  only name, email, mobile, and curriculum profile data; email cannot be cleared.
+  only name, email, mobile, optional school details, and curriculum profile data; email cannot be cleared.
   A legacy record must include email on its next edit. Changing email atomically
   changes the login ID and revokes active sessions without changing academic
   record IDs. Role, password hash, and status are not editable through this
@@ -136,6 +141,11 @@ password or history.
 
 - `GET /teacher/dashboard` -> `{total_tests, published_tests, submitted_attempts, pending_evaluation, recent_tests}` scoped to teacher ownership.
 - `GET /student/dashboard` -> `{available_tests, completed_tests}` scoped to the session student. Completed items expose result links only after publication.
+- `GET /teacher/test-history?student_id=&limit=&offset=` returns permanent
+  teacher-owned attempt history, counts, marks and an optional student profile.
+- `GET /student/test-history` returns all of the current student's assignments
+  and their assigned/in-progress/submitted/evaluated/published state. Marks are
+  included only for Published results.
 
 ## Student test and autosave
 
@@ -164,7 +174,7 @@ The backend validates attempt ownership/status, JPEG/PNG/WebP content, byte/pixe
   - Wrong requires `awarded_marks == 0`.
   - Partial requires `0 < awarded_marks < max_marks`.
 - `POST /teacher/attempts/{attempt_id}/results/publish` requires every question evaluated, computes the total, persists an immutable Published result, and returns it idempotently.
-- `GET /student/results/{attempt_id}` returns only the session student's Published result with total/max/percentage and question-wise status, awarded marks, maximum marks, and teacher feedback. It never includes reference answers.
+- `GET /student/results/{attempt_id}` returns only the session student's Published result with total/max/percentage, question-wise status, the student's submitted text/choice/private image links, awarded marks, maximum marks, and teacher feedback. It never includes reference answers or correct choices.
 
 ## Cross-cutting invariants
 

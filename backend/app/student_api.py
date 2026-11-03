@@ -67,6 +67,91 @@ async def dashboard(db: DB, student: Student):
     return {"available_tests": available, "submitted_tests": submitted, "completed_tests": completed}
 
 
+@router.get("/test-history")
+async def test_history(db: DB, student: Student):
+    rows = (
+        await db.execute(
+            select(TestAssignment, Test, Attempt, Result, Curriculum, Subject)
+            .join(Test, Test.id == TestAssignment.test_id)
+            .join(Curriculum, Curriculum.id == Test.curriculum_id)
+            .join(Subject, Subject.id == Test.subject_id)
+            .outerjoin(
+                Attempt,
+                (Attempt.test_id == Test.id) & (Attempt.student_id == student.id),
+            )
+            .outerjoin(Result, Result.attempt_id == Attempt.id)
+            .where(
+                TestAssignment.student_id == student.id,
+                Test.status == TestStatus.PUBLISHED,
+            )
+            .order_by(
+                func.coalesce(Result.published_at, Attempt.submitted_at, Attempt.started_at, TestAssignment.assigned_at).desc(),
+                Test.id,
+            )
+        )
+    ).all()
+    test_ids = [test.id for _, test, _, _, _, _ in rows]
+    attempt_ids = [attempt.id for _, _, attempt, _, _, _ in rows if attempt]
+    question_counts = dict(
+        (
+            await db.execute(
+                select(TestQuestion.test_id, func.count(TestQuestion.id))
+                .where(TestQuestion.test_id.in_(test_ids))
+                .group_by(TestQuestion.test_id)
+            )
+        ).all()
+    ) if test_ids else {}
+    answers = (
+        await db.scalars(select(StudentAnswer).where(StudentAnswer.attempt_id.in_(attempt_ids)))
+    ).all() if attempt_ids else []
+    ready_image_answer_ids = set(
+        (
+            await db.scalars(
+                select(AnswerImage.answer_id).where(
+                    AnswerImage.answer_id.in_([answer.id for answer in answers]),
+                    AnswerImage.status == ImageStatus.READY,
+                )
+            )
+        ).all()
+    ) if answers else set()
+    answered_by_attempt: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for answer in answers:
+        if (
+            answer.selected_option_id is not None
+            or (answer.text_answer is not None and answer.text_answer.strip())
+            or answer.id in ready_image_answer_ids
+        ):
+            answered_by_attempt.setdefault(answer.attempt_id, set()).add(answer.test_question_id)
+
+    items = []
+    for assignment, test, attempt, result, curriculum, subject in rows:
+        question_count = int(question_counts.get(test.id, 0))
+        answered_count = len(answered_by_attempt.get(attempt.id, set())) if attempt else 0
+        published_result = result if result and result.status == ResultStatus.PUBLISHED else None
+        items.append({
+            "test_id": test.id,
+            "attempt_id": attempt.id if attempt else None,
+            "test_name": test.title,
+            "date": (published_result.published_at if published_result else None)
+            or (attempt.submitted_at if attempt else None)
+            or (attempt.started_at if attempt else None)
+            or assignment.assigned_at,
+            "assigned_at": assignment.assigned_at,
+            "total_marks": published_result.max_total if published_result else test.total_marks,
+            "obtained_marks": published_result.awarded_total if published_result else None,
+            "percentage": published_result.percentage if published_result else None,
+            "answered_count": answered_count,
+            "unanswered_count": max(0, question_count - answered_count) if attempt else question_count,
+            "status": attempt.status if attempt else "assigned",
+            "result_published": published_result is not None,
+            "board": curriculum.board,
+            "state_code": curriculum.state_code,
+            "class_level": curriculum.class_level,
+            "subject_title": subject.title,
+        })
+    return {"items": items}
+
+
 @router.get("/tests/{test_id}")
 async def get_test(test_id: uuid.UUID, db: DB, student: Student):
     test = await assigned_test(db, test_id, student.id)
@@ -350,4 +435,41 @@ async def get_result(attempt_id: uuid.UUID, db: DB, student: Student):
     if not result:
         raise APIError(404, "result_not_found", "Published result not found")
     rows = (await db.execute(select(QuestionEvaluation, TestQuestion).join(TestQuestion, TestQuestion.id == QuestionEvaluation.test_question_id).where(QuestionEvaluation.attempt_id == attempt.id).order_by(TestQuestion.order))).all()
-    return {"attempt_id": attempt.id, "test_title": test.title, "awarded_total": result.awarded_total, "max_total": result.max_total, "percentage": result.percentage, "overall_comment": result.overall_comment, "published_at": result.published_at, "questions": [{"test_question_id": q.id, "order": q.order, "question_text": q.text, "status": e.status, "awarded_marks": e.awarded_marks, "max_marks": q.marks, "feedback": e.feedback} for e, q in rows]}
+    answers = (await db.scalars(select(StudentAnswer).where(StudentAnswer.attempt_id == attempt.id))).all()
+    answers_by_question = {answer.test_question_id: answer for answer in answers}
+    answer_ids = [answer.id for answer in answers]
+    images = (
+        await db.scalars(
+            select(AnswerImage)
+            .where(AnswerImage.answer_id.in_(answer_ids), AnswerImage.status == ImageStatus.READY)
+            .order_by(AnswerImage.answer_id, AnswerImage.page_order)
+        )
+    ).all() if answer_ids else []
+    image_map: dict[uuid.UUID, list[dict]] = {}
+    for image in images:
+        image_map.setdefault(image.answer_id, []).append({
+            "id": image.id,
+            "page_order": image.page_order,
+            "media_type": image.media_type,
+            "preview_url": await run_storage(storage.create_read_url, image.object_key),
+        })
+    questions = []
+    for evaluation, question in rows:
+        answer = answers_by_question.get(question.id)
+        questions.append({
+            "test_question_id": question.id,
+            "order": question.order,
+            "question_text": question.text,
+            "question_type": question.type,
+            "options": question.options,
+            "status": evaluation.status,
+            "awarded_marks": evaluation.awarded_marks,
+            "max_marks": question.marks,
+            "feedback": evaluation.feedback,
+            "answer": None if answer is None else {
+                "selected_option_id": answer.selected_option_id,
+                "text_answer": answer.text_answer,
+                "images": image_map.get(answer.id, []),
+            },
+        })
+    return {"attempt_id": attempt.id, "test_title": test.title, "awarded_total": result.awarded_total, "max_total": result.max_total, "percentage": result.percentage, "overall_comment": result.overall_comment, "published_at": result.published_at, "questions": questions}

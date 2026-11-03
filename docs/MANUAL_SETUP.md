@@ -69,6 +69,11 @@ source-file lineage, and changes chapter-code uniqueness from term-wide to
 textbook + term. Apply it only after `0005`; it preserves all existing Class 8
 textbooks, chapters, chunks, tests, attempts, and results.
 
+Migration `0007_student_school_fields`, implemented in
+`0007_student_school_fields.py`, adds nullable school name and school location
+columns only. Existing student records require no backfill and all login and
+academic-history identifiers remain unchanged.
+
 Before applying `0004`, check for duplicate non-null student emails and resolve
 them deliberately if this query returns rows:
 

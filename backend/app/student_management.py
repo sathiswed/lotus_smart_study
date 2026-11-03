@@ -49,10 +49,18 @@ def _clean_mobile(value: str | None) -> str | None:
     return cleaned
 
 
+def _clean_optional_text(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    return " ".join(value.split())
+
+
 class StudentCreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     email: str = Field(max_length=320)
     mobile: str | None = Field(default=None, max_length=32)
+    school_name: str | None = Field(default=None, max_length=255)
+    school_location: str | None = Field(default=None, max_length=255)
     curriculum_id: uuid.UUID | None = None
     class_level: int = Field(default=8, ge=8, le=12)
 
@@ -74,10 +82,17 @@ class StudentCreateIn(BaseModel):
     def validate_mobile(cls, value: str | None) -> str | None:
         return _clean_mobile(value)
 
+    @field_validator("school_name", "school_location")
+    @classmethod
+    def validate_school_text(cls, value: str | None) -> str | None:
+        return _clean_optional_text(value)
+
 class StudentUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     email: str | None = Field(default=None, max_length=320)
     mobile: str | None = Field(default=None, max_length=32)
+    school_name: str | None = Field(default=None, max_length=255)
+    school_location: str | None = Field(default=None, max_length=255)
     curriculum_id: uuid.UUID | None = None
     class_level: int | None = Field(default=None, ge=8, le=12)
 
@@ -103,6 +118,11 @@ class StudentUpdateIn(BaseModel):
     def validate_mobile(cls, value: str | None) -> str | None:
         return _clean_mobile(value)
 
+    @field_validator("school_name", "school_location")
+    @classmethod
+    def validate_school_text(cls, value: str | None) -> str | None:
+        return _clean_optional_text(value)
+
 def _student_payload(user: User, profile: StudentProfile, curriculum: Curriculum) -> dict:
     return {
         "id": user.id,
@@ -110,6 +130,8 @@ def _student_payload(user: User, profile: StudentProfile, curriculum: Curriculum
         "login_identifier": user.login_identifier,
         "email": profile.email,
         "mobile": profile.mobile,
+        "school_name": profile.school_name,
+        "school_location": profile.school_location,
         "class_level": profile.class_level,
         "curriculum_id": curriculum.id,
         "board": curriculum.board,
@@ -266,6 +288,8 @@ async def create_student(
                 class_level=payload.class_level,
                 email=payload.email,
                 mobile=payload.mobile,
+                school_name=payload.school_name,
+                school_location=payload.school_location,
             )
             db.add(profile)
             await db.flush()
@@ -322,6 +346,10 @@ async def update_student(
             login_changed = True
     if "mobile" in changes:
         profile.mobile = changes["mobile"]
+    if "school_name" in changes:
+        profile.school_name = changes["school_name"]
+    if "school_location" in changes:
+        profile.school_location = changes["school_location"]
     if "curriculum_id" in changes or "class_level" in changes:
         selected_class = changes.get("class_level", profile.class_level)
         curriculum = await _resolve_curriculum(db, changes.get("curriculum_id", profile.curriculum_id), selected_class)

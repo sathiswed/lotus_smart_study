@@ -31,6 +31,8 @@ export interface ManagedStudent {
   login_identifier: string;
   email: string | null;
   mobile: string | null;
+  school_name: string | null;
+  school_location: string | null;
   curriculum_id: string;
   board: BoardCode;
   state_code: string | null;
@@ -74,6 +76,10 @@ export interface Attempt {
   id: string; test_id: string; test_title?: string; status: AttemptStatus; unanswered_count: number;
   short_answer_max_chars?: number; questions: StudentQuestion[]; answers: StudentAnswer[];
 }
-export interface TeacherAttempt { attempt_id: string; status: AttemptStatus; test: {id:string;title:string;total_marks:number}; student:{id:string;name:string}; questions: Array<{id:string;order:number;text:string;type:QuestionType;marks:number;options?:Option[];reference_answer:string;answer?:{id:string;answer_type:string;selected_option_id?:string|null;text_answer?:string|null;images?:AnswerImage[]}|null;evaluation?:{status:EvaluationStatus;awarded_marks:number;feedback?:string;version:number}|null}> }
+export interface TeacherAttempt { attempt_id: string; status: AttemptStatus; submitted_at?: string | null; test: {id:string;title:string;total_marks:number}; student:{id:string;name:string}; result?: {awarded_total:number;max_total:number;percentage:number;published_at:string}|null; questions: Array<{id:string;order:number;text:string;type:QuestionType;marks:number;options?:Option[];reference_answer:string;answer?:{id:string;answer_type:string;selected_option_id?:string|null;text_answer?:string|null;images?:AnswerImage[]}|null;evaluation?:{status:EvaluationStatus;awarded_marks:number;feedback?:string;version:number}|null}> }
 export interface EvaluationQueueItem { attempt_id: string; test_id:string; test_title: string; student_name: string; submitted_at: string; status: AttemptStatus }
-export interface ResultDetail { attempt_id: string; test_title?: string; awarded_total: number; max_total: number; percentage: number; published_at: string; overall_comment?:string|null; questions: Array<{test_question_id: string; order: number; question_text: string; status: EvaluationStatus; awarded_marks: number; max_marks: number; feedback?: string}> }
+export interface TeacherHistoryItem { attempt_id: string; test_id: string; student_id: string; student_name: string; test_name: string; date: string; total_marks: number; obtained_marks: number | null; answered_count: number; unanswered_count: number; status: AttemptStatus; result_published: boolean }
+export interface StudentHistoryItem { test_id: string; attempt_id: string | null; test_name: string; date: string; assigned_at: string; total_marks: number; obtained_marks: number | null; percentage: number | null; answered_count: number; unanswered_count: number; status: AttemptStatus | "assigned"; result_published: boolean; board: BoardCode; state_code: string | null; class_level: number; subject_title: string }
+export interface TestAssignmentStudent { id: string; name: string; login_identifier: string; status: StudentStatus; assigned: boolean; attempt_id: string | null; attempt_status: AttemptStatus | null }
+export interface TeacherTestSummary { id: string; title: string; status: "draft" | "published"; total_marks: number; published_at: string | null; created_at: string; board: BoardCode; state_code: string | null; class_level: number; subject_title: string; assigned_count: number; attempt_count: number }
+export interface ResultDetail { attempt_id: string; test_title?: string; awarded_total: number; max_total: number; percentage: number; published_at: string; overall_comment?:string|null; questions: Array<{test_question_id: string; order: number; question_text: string; question_type: QuestionType; options?: Option[]; status: EvaluationStatus; awarded_marks: number; max_marks: number; feedback?: string; answer?: {selected_option_id?: string | null; text_answer?: string | null; images?: AnswerImage[]} | null}> }

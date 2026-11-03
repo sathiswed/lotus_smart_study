@@ -21,7 +21,8 @@ Status: Multi-curriculum implementation approved. Migrations are owner-run.
   JSON, failure detail, creator, and timestamps. Object keys are unique and a
   checksum cannot be repeated within the same textbook and term.
 - `student_profiles`: existing student user PK/FK, curriculum FK, class level
-  8-12, nullable legacy-compatible email/mobile, case-insensitive unique email.
+  8-12, nullable legacy-compatible email/mobile/school name/school location,
+  case-insensitive unique email.
   A check in application logic requires profile class to equal curriculum class.
 - `terms`: subject FK, normalized free-form syllabus-group code, title and
   sequence. Existing `term_1` and `term_2` values are preserved.
@@ -49,7 +50,8 @@ Status: Multi-curriculum implementation approved. Migrations are owner-run.
   reference answers remain in teacher-only DTOs.
 - `test_assignments`: unique direct test/student assignment. APIs require an
   active student whose curriculum matches the test at draft assignment and
-  again at publication.
+  again at publication. Post-publication assignment is additive and cannot
+  delete or replace existing assignment/attempt history.
 - `attempts`, `student_answers`, `answer_images`, `question_evaluations`, and
   `results` retain the original immutable submission/manual-evaluation model;
   no academic history is rewritten by curriculum/profile changes.
@@ -67,6 +69,8 @@ Status: Multi-curriculum implementation approved. Migrations are owner-run.
   reviewable detected/approved chapter metadata, source-file lineage, and
   textbook-scoped chapter uniqueness. Existing textbooks, chapters, chunks,
   questions, tests, attempts, and results are not rewritten.
+- `0007_student_school_fields.py`: nullable school name and location fields;
+  existing profiles and all academic records remain unchanged.
 
-Migrations `0005` and `0006` are forward-only. They do not create dummy curricula or alter
+Migrations `0005`, `0006`, and `0007` are forward-only. They do not create dummy curricula or alter
 passwords, attempts, answers, marks, results, or existing primary keys.

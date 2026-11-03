@@ -2,14 +2,14 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from .dependencies import DB, Teacher
 from .enums import AttemptStatus, EvaluationStatus, ImageStatus, ResultStatus, TestStatus
 from .errors import APIError
-from .models import AnswerImage, Attempt, Curriculum, QuestionEvaluation, Result, StudentAnswer, Subject, Test, TestQuestion, User
+from .models import AnswerImage, Attempt, Curriculum, QuestionEvaluation, Result, StudentAnswer, StudentProfile, Subject, Test, TestQuestion, User
 from .schemas import EvaluationSaveIn
 from .storage import run_storage, storage
 
@@ -48,6 +48,126 @@ async def evaluation_queue(db: DB, teacher: Teacher):
     return {"items": [{"attempt_id": a.id, "test_id": t.id, "test_title": t.title, "student_id": u.id, "student_name": u.name, "status": a.status, "submitted_at": a.submitted_at} for a, t, u in rows]}
 
 
+@router.get("/test-history")
+async def test_history(
+    db: DB,
+    teacher: Teacher,
+    student_id: uuid.UUID | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
+    filters = [Test.teacher_id == teacher.id]
+    if student_id is not None:
+        filters.append(Attempt.student_id == student_id)
+    total = int(
+        await db.scalar(
+            select(func.count())
+            .select_from(Attempt)
+            .join(Test, Test.id == Attempt.test_id)
+            .where(*filters)
+        )
+        or 0
+    )
+    rows = (
+        await db.execute(
+            select(Attempt, Test, User, Result)
+            .join(Test, Test.id == Attempt.test_id)
+            .join(User, User.id == Attempt.student_id)
+            .outerjoin(Result, Result.attempt_id == Attempt.id)
+            .where(*filters)
+            .order_by(
+                func.coalesce(Result.published_at, Attempt.submitted_at, Attempt.started_at).desc(),
+                Attempt.id,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    attempt_ids = [attempt.id for attempt, _, _, _ in rows]
+    test_ids = list({test.id for _, test, _, _ in rows})
+    question_counts = dict(
+        (
+            await db.execute(
+                select(TestQuestion.test_id, func.count(TestQuestion.id))
+                .where(TestQuestion.test_id.in_(test_ids))
+                .group_by(TestQuestion.test_id)
+            )
+        ).all()
+    ) if test_ids else {}
+    answers = (
+        await db.scalars(select(StudentAnswer).where(StudentAnswer.attempt_id.in_(attempt_ids)))
+    ).all() if attempt_ids else []
+    ready_image_answers = set(
+        (
+            await db.scalars(
+                select(AnswerImage.answer_id).where(
+                    AnswerImage.answer_id.in_([answer.id for answer in answers]),
+                    AnswerImage.status == ImageStatus.READY,
+                )
+            )
+        ).all()
+    ) if answers else set()
+    answered_by_attempt: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for answer in answers:
+        if (
+            answer.selected_option_id is not None
+            or (answer.text_answer is not None and answer.text_answer.strip())
+            or answer.id in ready_image_answers
+        ):
+            answered_by_attempt.setdefault(answer.attempt_id, set()).add(answer.test_question_id)
+    evaluation_rows = (
+        await db.execute(
+            select(
+                QuestionEvaluation.attempt_id,
+                func.count(QuestionEvaluation.id),
+                func.coalesce(func.sum(QuestionEvaluation.awarded_marks), 0),
+            )
+            .where(QuestionEvaluation.attempt_id.in_(attempt_ids))
+            .group_by(QuestionEvaluation.attempt_id)
+        )
+    ).all() if attempt_ids else []
+    evaluation_map = {attempt_id: (int(count), total_marks) for attempt_id, count, total_marks in evaluation_rows}
+    student_payload = None
+    if student_id is not None:
+        student_row = (
+            await db.execute(
+                select(User, StudentProfile)
+                .join(StudentProfile, StudentProfile.user_id == User.id)
+                .where(User.id == student_id)
+            )
+        ).first()
+        if student_row is None:
+            raise APIError(404, "student_not_found", "Student not found")
+        student_user, profile = student_row
+        student_payload = {
+            "id": student_user.id,
+            "name": student_user.name,
+            "login_identifier": student_user.login_identifier,
+            "school_name": profile.school_name,
+            "school_location": profile.school_location,
+        }
+    items = []
+    for attempt, test, student_user, result in rows:
+        question_count = int(question_counts.get(test.id, 0))
+        answered_count = len(answered_by_attempt.get(attempt.id, set()))
+        evaluation_count, evaluation_total = evaluation_map.get(attempt.id, (0, None))
+        items.append({
+            "attempt_id": attempt.id,
+            "test_id": test.id,
+            "student_id": student_user.id,
+            "student_name": student_user.name,
+            "test_name": test.title,
+            "date": (result.published_at if result else None) or attempt.submitted_at or attempt.started_at,
+            "total_marks": result.max_total if result else test.total_marks,
+            "obtained_marks": result.awarded_total if result else (evaluation_total if evaluation_count else None),
+            "answered_count": answered_count,
+            "unanswered_count": max(0, question_count - answered_count),
+            "status": attempt.status,
+            "result_published": bool(result and result.status == ResultStatus.PUBLISHED),
+        })
+    return {"items": items, "total": total, "limit": limit, "offset": offset, "student": student_payload}
+
+
 @router.get("/attempts/{attempt_id}")
 async def get_answer_sheet(attempt_id: uuid.UUID, db: DB, teacher: Teacher):
     attempt, test = await owned_attempt(db, attempt_id, teacher.id)
@@ -75,7 +195,8 @@ async def get_answer_sheet(attempt_id: uuid.UUID, db: DB, teacher: Teacher):
             "answer": None if not answer else {"id": answer.id, "answer_type": answer.answer_type, "selected_option_id": answer.selected_option_id, "text_answer": answer.text_answer, "images": image_map.get(answer.id, [])},
             "evaluation": None if not evaluation else {"status": evaluation.status, "awarded_marks": evaluation.awarded_marks, "feedback": evaluation.feedback, "version": evaluation.version},
         })
-    return {"attempt_id": attempt.id, "status": attempt.status, "test": {"id": test.id, "title": test.title, "total_marks": test.total_marks}, "student": {"id": student.id, "name": student.name}, "questions": question_items}
+    result = await db.scalar(select(Result).where(Result.attempt_id == attempt.id))
+    return {"attempt_id": attempt.id, "status": attempt.status, "submitted_at": attempt.submitted_at, "test": {"id": test.id, "title": test.title, "total_marks": test.total_marks}, "student": {"id": student.id, "name": student.name}, "result": None if not result else {"awarded_total": result.awarded_total, "max_total": result.max_total, "percentage": result.percentage, "published_at": result.published_at}, "questions": question_items}
 
 
 @router.put("/attempts/{attempt_id}/evaluations/{test_question_id}")

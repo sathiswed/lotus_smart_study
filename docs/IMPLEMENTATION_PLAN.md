@@ -159,9 +159,9 @@ Use `/api/v1`, JSON request/response bodies, UUID identifiers, ISO-8601 UTC time
 | Curriculum | `GET /curriculum/classes`, `GET /curriculum/classes/{id}/terms`, `GET /curriculum/terms/{id}/chapters`, `GET /curriculum/chapters/{id}/topics` |
 | Generation | `POST /generation-batches`, `GET /generation-batches/{id}`, `POST /generation-batches/{id}/generate` |
 | Question review | `PATCH /questions/{id}`, `POST /questions/{id}/regenerate`, `POST /questions/{id}/approve`, `POST /questions/{id}/reject` |
-| Tests | `POST /tests`, `GET /tests/{id}`, `PATCH /tests/{id}`, `POST /tests/{id}/assignments`, `POST /tests/{id}/publish` |
-| Teacher workflow | `GET /teacher/dashboard`, `GET /teacher/evaluations`, `GET /teacher/attempts/{id}`, `PUT /teacher/attempts/{id}/evaluations/{test_question_id}`, `POST /teacher/attempts/{id}/results/publish` |
-| Student workflow | `GET /student/dashboard`, `GET /student/tests/{id}`, `POST /student/tests/{id}/attempts`, `PUT /student/attempts/{id}/answers/{test_question_id}`, `POST /student/attempts/{id}/submit`, `GET /student/results/{attempt_id}` |
+| Tests | `POST /tests`, `GET /tests`, `GET /tests/{id}`, `PATCH /tests/{id}`, additive `POST /tests/{id}/assignments`, `POST /tests/{id}/publish` |
+| Teacher workflow | `GET /teacher/dashboard`, `GET /teacher/evaluations`, `GET /teacher/test-history`, `GET /teacher/attempts/{id}`, `PUT /teacher/attempts/{id}/evaluations/{test_question_id}`, `POST /teacher/attempts/{id}/results/publish` |
+| Student workflow | `GET /student/dashboard`, `GET /student/test-history`, `GET /student/tests/{id}`, `POST /student/tests/{id}/attempts`, `PUT /student/attempts/{id}/answers/{test_question_id}`, `POST /student/attempts/{id}/submit`, `GET /student/results/{attempt_id}` |
 | Answer images | authorize upload, complete/validate upload, list/preview, reorder, replace, and delete routes scoped to the student's In Progress attempt; teacher preview uses a separately authorized read grant |
 
 ### Generation request/response rules
@@ -401,3 +401,22 @@ Shared contracts are approved and Stages 1-10 may proceed for Class 8. Verified 
   available. Database integrity conflicts log only exception type, constraint
   name, and file UUID—never PDF text, prompts, credentials, or secrets.
 - No build, test, migration, server, or deployment was executed.
+
+### 2026-11-03 - Permanent history, additive assignments, and school details
+
+- Confirmed attempts, answers, evaluations, marks, and results have no
+  time-based deletion path. Added explicit teacher and student history APIs and
+  screens so older and result-published records are no longer hidden by recent
+  dashboard/evaluation queries.
+- Added teacher-wide and per-student attempt history with answered/unanswered
+  counts, marks, statuses, and read-only answer/evaluation detail. Published
+  student result detail now includes the student's own submitted answers and
+  private signed image links while continuing to hide reference answers.
+- Added a complete teacher test list and additive assignment controls for Draft
+  and Published tests. Duplicate assignments remain prevented by the existing
+  unique constraint; prior assignments, attempts, marks, and results are never
+  replaced.
+- Added optional school name and location to student create/edit/list/profile
+  contracts through forward-only migration `0007_student_school_fields.py`.
+- No build, test, migration, server, or deployment was executed. The owner must
+  apply migration `0007` and perform the documented manual workflow checks.

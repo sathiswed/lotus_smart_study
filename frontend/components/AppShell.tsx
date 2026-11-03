@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./AuthProvider";
 
-type IconName = "dashboard" | "spark" | "check" | "users" | "books" | "lock";
+type IconName = "dashboard" | "spark" | "check" | "users" | "books" | "lock" | "history";
 type NavItem = { href: string; label: string; icon: IconName };
 
 const nav: Record<"teacher" | "student", readonly NavItem[]> = {
@@ -13,11 +13,14 @@ const nav: Record<"teacher" | "student", readonly NavItem[]> = {
     { href: "/teacher", label: "Dashboard", icon: "dashboard" },
     { href: "/teacher/generate", label: "Question & Test Generation", icon: "spark" },
     { href: "/teacher/textbooks", label: "Textbooks", icon: "books" },
+    { href: "/teacher/tests", label: "Tests", icon: "check" },
     { href: "/teacher/evaluations", label: "Evaluations", icon: "check" },
+    { href: "/teacher/history", label: "Test History", icon: "history" },
     { href: "/teacher/students", label: "Students", icon: "users" },
   ],
   student: [
     { href: "/student", label: "Dashboard", icon: "dashboard" },
+    { href: "/student/history", label: "My Test History", icon: "history" },
     { href: "/student/change-password", label: "Change password", icon: "lock" },
   ],
 };
@@ -30,13 +33,14 @@ function NavIcon({ name }: { name: IconName }) {
     users: <><path d="M16 20v-1.5c0-2.5-2.2-4.5-5-4.5s-5 2-5 4.5V20" /><circle cx="11" cy="8" r="3" /><path d="M16 5.2a3 3 0 0 1 0 5.6M18 14.5c1.5.8 2.5 2.2 2.5 4V20" /></>,
     lock: <><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" /></>,
     books: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H12v18H7.5A3.5 3.5 0 0 0 4 23V5.5ZM20 5.5A3.5 3.5 0 0 0 16.5 2H12v18h4.5A3.5 3.5 0 0 1 20 23V5.5Z" /></>,
+    history: <><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5" /><path d="M4 4v4.5h4.5M12 7v5l3 2" /></>,
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
 function isActive(pathname: string, href: string) {
   if (href === "/teacher" || href === "/student") return pathname === href;
-  if (href === "/teacher/generate") return pathname.startsWith("/teacher/generate") || pathname.startsWith("/teacher/batches") || pathname.startsWith("/teacher/tests");
+  if (href === "/teacher/generate") return pathname.startsWith("/teacher/generate") || pathname.startsWith("/teacher/batches");
   return pathname.startsWith(href);
 }
 

@@ -30,6 +30,7 @@ export default function EvaluationDetailPage() {
   const maximum = useMemo(() => data?.questions.reduce((sum, question) => sum + question.marks, 0) ?? 0, [data]);
 
   function updateLocal(questionId: string, patch: Partial<SavedEvaluation>) {
+    if (data?.status === "result_published") return;
     setData(current => current ? { ...current, questions: current.questions.map(question => question.id === questionId ? { ...question, evaluation: { status: question.evaluation?.status ?? "wrong", awarded_marks: question.evaluation?.awarded_marks ?? 0, feedback: question.evaluation?.feedback, version: question.evaluation?.version ?? 0, ...patch } } : question) } : current);
     setDirty(current => current.includes(questionId) ? current : [...current, questionId]);
   }
@@ -40,6 +41,7 @@ export default function EvaluationDetailPage() {
   }
 
   async function save(questionId: string, evaluation: SavedEvaluation) {
+    if (data?.status === "result_published") return;
     setSaving(current => [...current, questionId]); setError("");
     try {
       const result = await api<SavedEvaluation>(`/teacher/attempts/${id}/evaluations/${questionId}`, { method: "PUT", body: JSON.stringify(evaluation) });
@@ -54,6 +56,7 @@ export default function EvaluationDetailPage() {
   }
 
   function setStatus(question: AttemptQuestion, status: EvaluationStatus) {
+    if (data?.status === "result_published") return;
     const evaluation = { status, awarded_marks: statusMarks(status, question.marks, Number(question.evaluation?.awarded_marks ?? 0)), feedback: question.evaluation?.feedback ?? "", version: question.evaluation?.version ?? 0 };
     updateLocal(question.id, evaluation);
     void save(question.id, evaluation);
@@ -69,8 +72,10 @@ export default function EvaluationDetailPage() {
   }
 
   if (!data) return error ? <Notice kind="error">{error}</Notice> : <Spinner />;
+  const locked = data.status === "result_published";
   return <><div className="page-header"><div><p className="eyebrow">Student answer sheet</p><h1>{data.test.title}</h1><p>{data.student.name} - <span className="marks">{total}/{maximum}</span></p></div><Pill>{data.status.replaceAll("_", " ")}</Pill></div>
     {error && <Notice kind="error">{error}</Notice>}
+    {locked && <Notice kind="success">This published result is a permanent read-only record. Marks and feedback can no longer be changed.</Notice>}
     <section className="stack">{data.questions.map(question => <article className="card question-card" key={question.id}>
       <div className="question-meta"><strong>Question {question.order}</strong><Pill>{question.type.replaceAll("_", " ")}</Pill><span>{question.marks} marks</span><span className="save-state">{saving.includes(question.id) ? "Saving..." : dirty.includes(question.id) ? "Unsaved" : question.evaluation ? "Saved" : "Unmarked"}</span></div>
       <p style={{ whiteSpace: "pre-wrap" }}>{question.text}</p>
@@ -78,11 +83,11 @@ export default function EvaluationDetailPage() {
         {!!question.answer?.images?.length && <div className="image-grid">{question.answer.images.map((image, index) => <a className="image-card" href={image.preview_url} target="_blank" rel="noreferrer" key={image.id}><img src={image.preview_url} alt={`Submitted page ${index + 1}`} /><span>Open page {index + 1} to zoom</span></a>)}</div>}
       </div>
       <div className="card" style={{ marginTop: ".75rem" }}><strong>Teacher reference answer</strong><p style={{ whiteSpace: "pre-wrap" }}>{question.reference_answer}</p></div>
-      <div className="stack" style={{ marginTop: ".75rem" }}><fieldset><legend>Evaluation status</legend><div className="actions">{(["correct", "partial", "wrong"] as EvaluationStatus[]).map(status => <button disabled={saving.includes(question.id)} className={question.evaluation?.status === status ? "" : "secondary"} key={status} onClick={() => setStatus(question, status)}>{status[0].toUpperCase() + status.slice(1)}</button>)}</div></fieldset>
-        <label>Awarded marks<input type="number" min="0" max={question.marks} step="0.5" disabled={question.evaluation?.status !== "partial" || saving.includes(question.id)} value={question.evaluation?.awarded_marks ?? 0} onChange={event => updateLocal(question.id, { awarded_marks: Number(event.target.value) })} onBlur={() => { const current = data.questions.find(item => item.id === question.id)?.evaluation; if (current) void save(question.id, current); }} /></label>
-        <label>Feedback (optional)<textarea disabled={saving.includes(question.id)} value={question.evaluation?.feedback ?? ""} onChange={event => updateLocal(question.id, { feedback: event.target.value })} onBlur={() => { const current = data.questions.find(item => item.id === question.id)?.evaluation; if (current) void save(question.id, current); }} /></label>
+      <div className="stack" style={{ marginTop: ".75rem" }}><fieldset><legend>Evaluation status</legend><div className="actions">{(["correct", "partial", "wrong"] as EvaluationStatus[]).map(status => <button disabled={locked || saving.includes(question.id)} className={question.evaluation?.status === status ? "" : "secondary"} key={status} onClick={() => setStatus(question, status)}>{status[0].toUpperCase() + status.slice(1)}</button>)}</div></fieldset>
+        <label>Awarded marks<input type="number" min="0" max={question.marks} step="0.5" disabled={locked || question.evaluation?.status !== "partial" || saving.includes(question.id)} value={question.evaluation?.awarded_marks ?? 0} onChange={event => updateLocal(question.id, { awarded_marks: Number(event.target.value) })} onBlur={() => { const current = data.questions.find(item => item.id === question.id)?.evaluation; if (current) void save(question.id, current); }} /></label>
+        <label>Feedback (optional)<textarea disabled={locked || saving.includes(question.id)} value={question.evaluation?.feedback ?? ""} onChange={event => updateLocal(question.id, { feedback: event.target.value })} onBlur={() => { const current = data.questions.find(item => item.id === question.id)?.evaluation; if (current) void save(question.id, current); }} /></label>
       </div>
     </article>)}</section>
-    <div className="sticky-actions"><span><strong>{total}/{maximum}</strong> - {dirty.length ? "Save all changes before publishing" : complete ? "All questions marked" : "Mark every question before publishing"}</span><button disabled={!complete || busy || !!saving.length || !!dirty.length} onClick={() => void publish()}>{busy ? "Publishing..." : "Publish result"}</button></div>
+    {!locked && <div className="sticky-actions"><span><strong>{total}/{maximum}</strong> - {dirty.length ? "Save all changes before publishing" : complete ? "All questions marked" : "Mark every question before publishing"}</span><button disabled={!complete || busy || !!saving.length || !!dirty.length} onClick={() => void publish()}>{busy ? "Publishing..." : "Publish result"}</button></div>}
   </>;
 }

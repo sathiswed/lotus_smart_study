@@ -45,6 +45,8 @@ Approved: 2026-10-31
 | D-026 | Textbook upload and generation readiness are separate states | Teacher PDF upload is private and verified. Generation is enabled only after approved extraction/indexing marks the book Ready and produces exact-book chapter chunks; no automatic chapter invention is allowed. |
 | D-027 | Question patterns are per generation batch | Counts and marks for supported types are stored with each batch instead of enforcing one syllabus-wide distribution. Style is framing only unless an approved pattern corpus exists. |
 | D-028 | PDF chapter detection requires teacher approval | Each uploaded PDF is verified and processed independently. Chapter candidates come only from extracted PDF content, never filenames. A teacher may correct numbers, titles, and page ranges before a transaction creates chapters/source chunks. Checksum, source lineage, and scoped uniqueness make retries idempotent. A Ready source index is replaceable only while none of its chapters has been used for generation or configured with topics; academic records are never rewritten. |
+| D-029 | Academic history is permanent and assignments are additive | Attempts, submitted answers, evaluations, marks, and published results remain in PostgreSQL unless an explicit future deletion policy is approved. Assigning an existing test adds eligible students without removing prior assignments or changing history. |
+| D-030 | School details are optional profile metadata | School name and location may be added or edited without changing the student's identity, login credentials, curriculum history, assignments, attempts, or results. Existing profiles remain valid with null values. |
 
 ## Approved lifecycle rules
 
