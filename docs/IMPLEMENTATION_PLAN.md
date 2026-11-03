@@ -33,7 +33,10 @@ Planning and shared contracts are approved. Implementation is active. Migration 
    - Private object storage in deployed environments, accessed through a small storage adapter.
    - PostgreSQL stores opaque object keys and metadata, never image binaries or unrestricted public URLs.
 5. **Textbook/source ingestion and retrieval**
-   - An operator-run ingestion process, not an MVP administration screen.
+   - Preserve the operator-run legacy Class 8 seed ingestion and provide
+     teacher-managed private PDF upload, content-based chapter review, and
+     approved indexing in the existing Textbooks workspace (not a separate
+     administration portal).
    - Textbook chunks carry exact class, subject, term, chapter, topic, document, page, checksum, and index-version metadata.
    - CBSE pattern guidance, when supplied, is a separate corpus that controls framing but cannot broaden syllabus content.
 
@@ -354,9 +357,47 @@ Shared contracts are approved and Stages 1-10 may proceed for Class 8. Verified 
   assignment selection. Existing answer, upload, manual evaluation, result,
   and password workflows remain unchanged.
 - Preserved the verified CBSE Class 8 Mathematics corpus as the only preloaded
-  Ready textbook. Additional curricula become generation-ready only after an
-  operator-approved extraction/indexing process creates owned chapters and
-  chunks and marks the textbook Ready.
+  Ready textbook. Additional curricula become generation-ready only after a
+  teacher reviews detected PDF chapter boundaries and approves exact-book
+  extraction/indexing.
 - All 16 use cases retain coverage for every generation-ready curriculum. No
   build, test, migration, server, ingestion, provider call, or deployment was
   executed; owner validation remains required.
+
+### 2026-11-03 - Bulk textbook upload and reviewed chapter indexing
+
+- Added dependent Board -> Class -> Subject -> Textbook -> Term management and
+  multi-PDF selection in the existing teacher Textbooks workspace.
+- Each PDF now receives an independent private R2 raw-byte PUT grant and a
+  durable upload/detection/indexing status with teacher-visible failure and
+  retry controls.
+- Added content-based PDF chapter candidate detection supporting one or many
+  chapters per file. Filenames are not used as academic metadata; teachers edit
+  chapter number, title, and page boundaries before approval.
+- Finalization transactionally creates textbook/term-scoped chapters, source
+  documents, and page chunks. Verified checksums, scoped unique constraints,
+  source-file lineage, row locking, and immutable Ready files prevent duplicate
+  chapters and repeated indexing on retry.
+- Preserved the existing Class 8 catalog and legacy ingestion pipeline. No
+  build, test, migration, server, provider call, or deployment was executed.
+  Owner-run migration and runtime validation remain required.
+
+### 2026-11-03 - Textbook chapter conflict remediation
+
+- Tightened PDF chapter detection after Class 12 chapter-only books exposed a
+  false-boundary case: running headers, body references to another chapter, and
+  later numbered sections can no longer create chapter candidates by
+  themselves. Detection now requires page-opening `Chapter/Unit` evidence or
+  the first `x.1` section near the top of a page; trailing title numbers only
+  corroborate those signals.
+- Added a per-file **Re-detect chapters** action so already uploaded PDFs can
+  use corrected detection without re-uploading, and moved finalize errors next
+  to the affected file instead of only at the top of the page.
+- Added guarded recovery for Ready files created by the earlier detector. A
+  teacher may re-detect and replace an unused source index; the backend blocks
+  replacement if any affected chapter has a generation batch, question, or
+  configured topic, preserving all academic records.
+- Duplicate chapter responses now identify the existing source file when
+  available. Database integrity conflicts log only exception type, constraint
+  name, and file UUID—never PDF text, prompts, credentials, or secrets.
+- No build, test, migration, server, or deployment was executed.

@@ -15,16 +15,25 @@ Status: Multi-curriculum implementation approved. Migrations are owner-run.
 - `textbooks`: subject FK, title, year/edition, private object key/checksum,
   processing status/failure, creator, timestamps; unique title+edition per
   subject.
+- `textbook_files`: one independently processed private PDF belonging to a
+  textbook and term, with original filename, opaque object key, verified
+  checksum/size/pages, lifecycle status, detected and teacher-approved chapter
+  JSON, failure detail, creator, and timestamps. Object keys are unique and a
+  checksum cannot be repeated within the same textbook and term.
 - `student_profiles`: existing student user PK/FK, curriculum FK, class level
   8-12, nullable legacy-compatible email/mobile, case-insensitive unique email.
   A check in application logic requires profile class to equal curriculum class.
 - `terms`: subject FK, normalized free-form syllabus-group code, title and
   sequence. Existing `term_1` and `term_2` values are preserved.
-- `chapters`: textbook and term FKs, code/title/sequence.
+- `chapters`: textbook and term FKs, code/title/sequence; chapter code is
+  unique within the textbook + term pair.
 - `topics`: chapter FK, section code/title/sequence and enablement.
 - `source_documents` / `source_chunks`: textbook, term, chapter and optional
   topic ownership plus checksum/version/pages/content/index state. Retrieval
-  requires exact ownership and a Ready source document.
+  requires exact ownership and a Ready source document. Newly uploaded
+  documents also retain their `textbook_file_id`; one source document per
+  uploaded file/chapter prevents retry duplication. Legacy Class 8 source rows
+  remain valid with a null file ID.
 
 ## Generation, tests, and history
 
@@ -54,6 +63,10 @@ Status: Multi-curriculum implementation approved. Migrations are owner-run.
 - `0005_multi_curriculum_platform.py`: normalized curriculum/subject/textbook
   relationships, Class 8-12 checks, flexible term code, per-batch marks, and
   historical backfill to fixed CBSE Class 8 Mathematics IDs.
+- `0006_bulk_textbook_ingestion.py`: independent textbook PDF tracking,
+  reviewable detected/approved chapter metadata, source-file lineage, and
+  textbook-scoped chapter uniqueness. Existing textbooks, chapters, chunks,
+  questions, tests, attempts, and results are not rewritten.
 
-Migration `0005` is forward-only. It does not create dummy curricula or alter
+Migrations `0005` and `0006` are forward-only. They do not create dummy curricula or alter
 passwords, attempts, answers, marks, results, or existing primary keys.

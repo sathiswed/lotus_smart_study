@@ -34,7 +34,7 @@ Approved: 2026-10-31
 | D-015 | Immutable publication snapshots | Publishing copies complete student-facing question content and teacher-only reference content into ordered test-question snapshots. |
 | D-016 | One attempt per assigned student per test | A uniqueness constraint and idempotent start/submit behavior enforce submit-once workflow. |
 | D-017 | Server-backed optimistic autosave | Student answers and teacher evaluations use versioned idempotent updates; submitted answers are immutable. |
-| D-018 | Operator-managed source ingestion | No Admin portal. Curriculum seed data and textbook extraction/indexing are development/operations tasks. |
+| D-018 | Teacher-managed textbook ingestion inside the existing workspace | No separate Admin portal. Teachers may upload and approve curriculum sources; exact scope, private storage, and server-side validation remain mandatory. |
 | D-019 | Versioned API and consistent errors | Use `/api/v1`, UUIDs, UTC timestamps, and `{error: {code, message, details?}}`. |
 | D-020 | Forward-only migrations | Migration files are created but must not be executed by Codex. |
 | D-021 | Generated case-study items default to 5 marks | The PRD defines a case-study count but no separate marks input. Five marks is an editable generation default; the teacher may change it during Draft review before approval/publication. |
@@ -44,6 +44,7 @@ Approved: 2026-10-31
 | D-025 | State Boards require a normalized state/curriculum identifier | A generic `state` board value is never sufficient by itself, preventing textbooks from unrelated State Boards from sharing a scope. |
 | D-026 | Textbook upload and generation readiness are separate states | Teacher PDF upload is private and verified. Generation is enabled only after approved extraction/indexing marks the book Ready and produces exact-book chapter chunks; no automatic chapter invention is allowed. |
 | D-027 | Question patterns are per generation batch | Counts and marks for supported types are stored with each batch instead of enforcing one syllabus-wide distribution. Style is framing only unless an approved pattern corpus exists. |
+| D-028 | PDF chapter detection requires teacher approval | Each uploaded PDF is verified and processed independently. Chapter candidates come only from extracted PDF content, never filenames. A teacher may correct numbers, titles, and page ranges before a transaction creates chapters/source chunks. Checksum, source lineage, and scoped uniqueness make retries idempotent. A Ready source index is replaceable only while none of its chapters has been used for generation or configured with topics; academic records are never rewritten. |
 
 ## Approved lifecycle rules
 
@@ -89,10 +90,9 @@ These do not block source implementation, but must be supplied before the releva
 - Actual licensed/approved textbooks and chapter boundaries for every intended
   Class 9-12, ICSE, and State Board curriculum. None are fabricated or shipped
   by this change, so those selections cannot generate yet.
-- An approved chapter extraction map or operator processing job for each newly
-  uploaded whole-book PDF. Upload verification records the book as `uploaded`;
-  only reviewed extraction/indexing may create its chapter/source records and
-  move it to `ready`.
+- Teacher review of automatically detected chapter numbers, titles, and page
+  ranges for every uploaded PDF. Detection is deliberately not treated as
+  authoritative; only approval creates indexed chapter/source records.
 
 ## Default operational values
 

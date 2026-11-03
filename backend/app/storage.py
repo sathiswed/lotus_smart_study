@@ -34,6 +34,7 @@ class VerifiedPdf:
     byte_size: int
     checksum: str
     page_count: int
+    data: bytes
 
 
 class PrivateObjectStorage:
@@ -149,7 +150,7 @@ class PrivateObjectStorage:
             raise APIError(422, "invalid_textbook_pdf", "Uploaded textbook PDF is unreadable") from exc
         if page_count < 1:
             raise APIError(422, "invalid_textbook_pdf", "Uploaded textbook PDF contains no pages")
-        return VerifiedPdf(len(data), hashlib.sha256(data).hexdigest(), page_count)
+        return VerifiedPdf(len(data), hashlib.sha256(data).hexdigest(), page_count, data)
 
 
 storage = PrivateObjectStorage()

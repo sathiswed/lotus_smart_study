@@ -55,6 +55,18 @@ or log out. All curriculum, test, answer, upload, and result APIs return
 - `GET /teacher/textbooks` lists managed textbook status.
 - `POST /teacher/textbooks/upload-url` accepts board/state/class, subject identifier/title, textbook title, year/edition, and PDF metadata; it returns a private raw-byte PUT grant.
 - `POST /teacher/textbooks/{textbook_id}/complete` verifies the private PDF and moves it to `uploaded`. Approved extraction/indexing must move it through `processing` to `ready`.
+- `POST /teacher/textbooks/catalog` creates or returns textbook metadata for a normalized board, state (when applicable), class, and subject without fabricating curriculum content.
+- `POST /teacher/textbooks/{textbook_id}/terms` creates or returns a normalized subject term/syllabus group.
+- `GET /teacher/textbooks/{textbook_id}/files?term_id=` lists independently tracked private PDFs and their `uploading | review_required | indexing | ready | failed` status.
+- `POST /teacher/textbooks/{textbook_id}/files/upload-url` accepts `{term_id, file_name, content_type: "application/pdf", byte_size}` and returns a presigned raw-byte `PUT` grant plus a file record.
+- `POST /teacher/textbooks/{textbook_id}/files/{file_id}/complete` verifies the R2 object, extracts PDF text, and detects one or more chapter boundaries from content. It never derives chapter metadata from the filename.
+- `POST /teacher/textbooks/{textbook_id}/files/{file_id}/detect` retries verification and content-based detection without creating chapters or chunks. For a Ready file, it may replace the source index only when none of its chapters has been used by generation or configured with topics; otherwise it returns `409 textbook_file_index_in_use` without changing academic records.
+- `POST /teacher/textbooks/{textbook_id}/files/{file_id}/finalize` accepts teacher-reviewed `{chapters: [{code, title, page_start, page_end}]}`. It transactionally creates exact-textbook chapters, source documents, and page chunks and marks the file/book Ready.
+- `DELETE /teacher/textbooks/{textbook_id}/files/{file_id}` removes only a non-finalized file record and its private object. Ready files are immutable.
+
+Duplicate PDF checks use the verified checksum within textbook + term. Chapter
+codes are unique within textbook + term, page ranges cannot overlap, and an
+idempotent repeat of an already finalized payload does not re-index content.
 
 ## Generation and review
 

@@ -94,6 +94,29 @@ class Textbook(TimestampMixin, Base):
     subject: Mapped[Subject] = relationship()
 
 
+class TextbookFile(TimestampMixin, Base):
+    __tablename__ = "textbook_files"
+    __table_args__ = (
+        UniqueConstraint("object_key", name="uq_textbook_file_object_key"),
+        UniqueConstraint("textbook_id", "term_id", "checksum", name="uq_textbook_file_checksum"),
+        CheckConstraint("byte_size > 0", name="ck_textbook_file_size_positive"),
+        CheckConstraint("page_count IS NULL OR page_count > 0", name="ck_textbook_file_pages_positive"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    textbook_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("textbooks.id"), index=True)
+    term_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("terms.id"), index=True)
+    original_filename: Mapped[str] = mapped_column(String(255))
+    object_key: Mapped[str] = mapped_column(Text)
+    checksum: Mapped[str | None] = mapped_column(String(64))
+    byte_size: Mapped[int] = mapped_column(Integer)
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(30), default="uploading", index=True)
+    detected_chapters: Mapped[list] = mapped_column(JSONB, default=list)
+    approved_chapters: Mapped[list] = mapped_column(JSONB, default=list)
+    failure_reason: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+
+
 class StudentProfile(Base):
     __tablename__ = "student_profiles"
     __table_args__ = (
@@ -130,7 +153,7 @@ class Term(Base):
 
 class Chapter(Base):
     __tablename__ = "chapters"
-    __table_args__ = (UniqueConstraint("term_id", "code", name="uq_chapter_term_code"),)
+    __table_args__ = (UniqueConstraint("textbook_id", "term_id", "code", name="uq_chapter_textbook_term_code"),)
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     textbook_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("textbooks.id"), index=True)
     term_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("terms.id", ondelete="CASCADE"), index=True)
@@ -154,7 +177,17 @@ class Topic(Base):
 
 class SourceDocument(TimestampMixin, Base):
     __tablename__ = "source_documents"
+    __table_args__ = (
+        Index(
+            "uq_source_document_file_chapter",
+            "textbook_file_id",
+            "chapter_id",
+            unique=True,
+            postgresql_where=text("textbook_file_id IS NOT NULL"),
+        ),
+    )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    textbook_file_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("textbook_files.id"), index=True)
     textbook_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("textbooks.id"), index=True)
     term_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("terms.id"), index=True)
     chapter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("chapters.id"), index=True)

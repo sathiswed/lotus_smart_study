@@ -12,6 +12,15 @@ export interface Subject { id: string; curriculum_id: string; code: string; titl
 export interface Textbook { id: string; subject_id: string; title: string; academic_year?: string | null; edition: string; processing_status: string; failure_reason?: string | null; content_available: boolean; indexed_chunk_count: number }
 export interface ManagedTextbook extends Textbook { curriculum_id: string; board: BoardCode; state_code: string | null; class_level: number; subject_code: string; subject_title: string }
 export interface Term { id: string; subject_id?: string; code: string; title: string; sequence: number }
+export interface DetectedTextbookChapter { code: string; title: string; page_start: number; page_end: number; confidence?: "high" | "medium" | "low" }
+export interface TextbookFile {
+  id: string; textbook_id: string; term_id: string; original_filename: string;
+  byte_size: number; page_count: number | null;
+  status: "uploading" | "review_required" | "indexing" | "ready" | "failed";
+  detected_chapters: DetectedTextbookChapter[];
+  approved_chapters: DetectedTextbookChapter[];
+  failure_reason: string | null; created_at: string; updated_at: string;
+}
 export interface Chapter { id: string; textbook_id: string; term_id: string; term_title?: string; code: string; title: string; sequence: number; content_available?: boolean }
 export interface Topic { id: string; chapter_id: string; section_code: string; title: string; sequence: number; is_enabled?: boolean }
 export interface Student { id: string; name: string; login_identifier: string }

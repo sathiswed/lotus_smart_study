@@ -63,6 +63,12 @@ textbook ownership; permits Classes 8-12; converts term codes to flexible
 normalized strings; and backfills all existing records to the preserved CBSE
 Class 8 Mathematics textbook. Review a backup before applying it.
 
+Migration `0006_bulk_textbook_ingestion`, implemented in
+`0006_bulk_textbook_ingestion.py`, adds independent PDF upload records and
+source-file lineage, and changes chapter-code uniqueness from term-wide to
+textbook + term. Apply it only after `0005`; it preserves all existing Class 8
+textbooks, chapters, chunks, tests, attempts, and results.
+
 Before applying `0004`, check for duplicate non-null student emails and resolve
 them deliberately if this query returns rows:
 
@@ -74,12 +80,13 @@ GROUP BY lower(email)
 HAVING count(*) > 1;
 ```
 
-The legacy ingestion command seeds only the approved existing Class 8 Term
+The legacy ingestion command still seeds the approved existing Class 8 Term
 1/Term 2 catalog and numbered topics, then extracts those PDFs into exact-book
-source chunks. Additional PDFs can be uploaded from Teacher -> Textbooks, but
-remain `uploaded` and unavailable for generation until an approved operator
-extraction/indexing step creates their true chapters/chunks and marks them
-`ready`. Do not manually mark a book Ready without indexed content.
+source chunks. It is unchanged. For additional content, use Teacher -> Manage
+Textbooks: select the exact curriculum and term, upload one or more PDFs,
+review the chapter candidates extracted from the PDF text, correct their page
+ranges if needed, and choose **Approve and index**. Do not manually mark a book
+Ready without indexed content.
 
 ## 4. Private image storage
 

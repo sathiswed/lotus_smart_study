@@ -197,8 +197,8 @@ legend { padding: 0 .4rem; color: var(--navy); font-weight: 750; }
 .pill { display: inline-flex; align-items: center; width: fit-content; padding: .26rem .55rem; border: 1px solid #ccdae5; border-radius: 999px; background: #f3f6f8; color: #53677a; font-size: .72rem; font-weight: 750; line-height: 1.2; text-transform: capitalize; white-space: nowrap; }
 .pill-active, .pill-approved, .pill-completed, .pill-correct, .pill-result_published, .pill-published, .pill-ready { border-color: #a8ddcf; background: var(--success-soft); color: var(--success-dark); }
 .pill-inactive, .pill-rejected, .pill-failed, .pill-wrong { border-color: #efc3bf; background: var(--danger-soft); color: #8c241b; }
-.pill-generating, .pill-in_progress, .pill-evaluation_in_progress, .pill-submitted, .pill-queued { border-color: #b9def3; background: var(--surface-blue); color: #08679e; }
-.pill-partial, .pill-draft, .pill-uploading { border-color: #ead7a6; background: var(--warning-soft); color: var(--warning); }
+.pill-generating, .pill-in_progress, .pill-evaluation_in_progress, .pill-submitted, .pill-queued, .pill-indexing, .pill-processing { border-color: #b9def3; background: var(--surface-blue); color: #08679e; }
+.pill-partial, .pill-draft, .pill-uploading, .pill-review_required { border-color: #ead7a6; background: var(--warning-soft); color: var(--warning); }
 
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
 .list { display: grid; gap: 0; }
@@ -256,6 +256,23 @@ dialog { max-width: min(620px, calc(100vw - 2rem)); border: 1px solid var(--bord
 .password-rules { margin: 0; padding-left: 1.2rem; color: var(--muted); font-size: .88rem; }
 .password-rules li { margin: .2rem 0; }
 
+.textbook-setup, .textbook-upload-card, .textbook-review-section { margin-top: 1rem; }
+.textbook-setup > summary { color: var(--navy); font-weight: 800; cursor: pointer; }
+.textbook-setup-grid { margin-top: 1rem; }
+.textbook-setup-grid form { align-content: start; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.textbook-setup-grid h3, .textbook-file-card h3 { margin: 0; }
+.upload-queue { display: grid; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.upload-queue-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .72rem .85rem; border-bottom: 1px solid var(--border); }
+.upload-queue-row:last-child { border-bottom: 0; }
+.upload-queue-row > span { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .55rem; }
+.upload-queue-row small { color: var(--danger); }
+.textbook-file-card { display: grid; gap: 1rem; }
+.textbook-file-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.textbook-file-heading p { margin: .25rem 0 0; }
+.chapter-review-list { display: grid; gap: .75rem; }
+.chapter-review-row { display: grid; grid-template-columns: minmax(110px, .45fr) minmax(230px, 1.5fr) minmax(90px, .35fr) minmax(90px, .35fr) auto; align-items: end; gap: .65rem; padding: .8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-subtle); }
+.chapter-remove { min-width: 88px; }
+
 @media (max-width: 900px) {
   :root { --header-height: 78px; }
   .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--header-height) auto minmax(0, 1fr); grid-template-areas: "header" "sidebar" "main"; }
@@ -286,6 +303,9 @@ dialog { max-width: min(620px, calc(100vw - 2rem)); border: 1px solid var(--bord
   .credential-box { grid-template-columns: 1fr; }
   .question-pattern-grid { grid-template-columns: minmax(120px, 1fr) 82px 100px; gap: .55rem; }
   .student-dialog .actions button { flex: 1; }
+  .chapter-review-row { grid-template-columns: 1fr 1fr; }
+  .chapter-review-row label:nth-child(2) { grid-column: 1 / -1; }
+  .chapter-remove { width: 100%; }
 }
 
 @media (max-width: 540px) {
@@ -305,6 +325,10 @@ dialog { max-width: min(620px, calc(100vw - 2rem)); border: 1px solid var(--bord
   .image-grid { grid-template-columns: 1fr; }
   .student-search { grid-template-columns: 1fr; }
   .student-search label:first-child { grid-column: auto; }
+  .upload-queue-row, .textbook-file-heading { align-items: flex-start; flex-direction: column; }
+  .upload-queue-row > span { justify-content: flex-start; }
+  .chapter-review-row { grid-template-columns: 1fr; }
+  .chapter-review-row label:nth-child(2) { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
