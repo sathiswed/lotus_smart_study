@@ -81,7 +81,14 @@ export default function BatchReviewPage() {
   const [generationError, setGenerationError] = useState("");
   const generationRequested = useRef(false);
 
-  const loadBatch = () => api<GenerationBatch>(`/generation-batches/${id}`).then(setBatch);
+  const loadBatch = async () => {
+    const current = await api<GenerationBatch>(`/generation-batches/${id}`);
+    setBatch(current);
+    if (current.status === "completed" || current.status === "failed") {
+      setGenerationError("");
+    }
+    return current;
+  };
 
   useEffect(() => {
     loadBatch().catch(caught => setError(caught.message));
@@ -129,7 +136,7 @@ export default function BatchReviewPage() {
   if (!batch) return error ? <Notice kind="error">{error}</Notice> : <Spinner label="Loading generated questions..." />;
   return <>
     <div className="page-header"><div><p className="eyebrow">Review and approve</p><h1>Generated questions</h1><p>{approved.length} of {batch.questions.length} approved - {currentMarks} current marks</p>{batch.board && <p className="muted">{batch.board === "state" ? `State Board (${batch.state_code})` : batch.board.toUpperCase()} | Class {batch.class_level} | {batch.subject_title} | {batch.textbook_title} | {batch.chapter_title}</p>}</div><Pill>{batch.status}</Pill></div>
-    {(batch.status === "queued" || batch.status === "generating") && <Notice>Generation is in progress. This page will update automatically. {batch.status === "queued" && generationError && <button disabled={generationBusy} onClick={() => void generate()}>Retry generation</button>}</Notice>}
+    {(batch.status === "queued" || batch.status === "generating") && <Notice>Generation is running in the background. This page will update automatically. <button className="secondary" disabled={generationBusy} onClick={() => void generate()}>{generationBusy ? "Checking..." : batch.status === "queued" ? "Start generation" : "Check or retry"}</button></Notice>}
     {batch.status === "failed" && <Notice kind="error">{batch.failure_reason ?? "Generation failed."} <button disabled={generationBusy} onClick={() => { generationRequested.current = false; void generate(); }}>{generationBusy ? "Retrying..." : "Retry generation"}</button></Notice>}
     {generationError && <Notice kind="error">{generationError}</Notice>}
     {error && <Notice kind="error">{error}</Notice>}

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 
 from ..config import get_settings
+from ..database import SessionLocal
 from ..dependencies import DB, Teacher
 from ..enums import (
     Difficulty as DbDifficulty,
@@ -37,6 +39,7 @@ from .validation import GenerationValidationError
 
 
 router = APIRouter(tags=["generation"])
+logger = logging.getLogger(__name__)
 
 
 class CreateGenerationBatch(BaseModel):
@@ -174,11 +177,34 @@ async def get_generation_batch(batch_id: UUID, db: DB, user: Teacher):
     return {**_batch_out(batch, questions), **(await _batch_scope_out(db, batch))}
 
 
+async def _generate_batch_in_background(batch_id: UUID, teacher_id: UUID) -> None:
+    async with SessionLocal() as session:
+        try:
+            await _service(session).generate_claimed_batch(batch_id, teacher_id)
+        except Exception as exc:
+            # Detailed provider/validation diagnostics are logged by the service.
+            # Keep this boundary free of prompts, textbook text, credentials, and PII.
+            logger.error(
+                "Background question generation ended with an error: batch_id=%s exception_type=%s",
+                batch_id,
+                type(exc).__name__,
+            )
+
+
 @router.post("/generation-batches/{batch_id}/generate")
-async def generate_batch(batch_id: UUID, db: DB, user: Teacher):
+async def generate_batch(
+    batch_id: UUID,
+    background_tasks: BackgroundTasks,
+    db: DB,
+    user: Teacher,
+):
     try:
         service = _service(db)
-        await service.generate_batch(batch_id, user.id)
+        claimed = await service.claim_batch(batch_id, user.id)
+        if claimed:
+            background_tasks.add_task(
+                _generate_batch_in_background, batch_id, user.id
+            )
     except GenerationRecordNotFound as exc:
         raise APIError(404, "generation_batch_not_found", str(exc)) from exc
     except GenerationInProgressError as exc:

@@ -76,7 +76,11 @@ idempotent repeat of an already finalized payload does not re-index content.
   at most 20 in one batch. Total marks are calculated server-side.
 - `GET /generation-batches/{batch_id}` returns configuration, lifecycle status/failure, and teacher question DTOs.
 - `GET /generation-batches` returns the authenticated teacher's 10 most recent batches for recovery/navigation.
-- `POST /generation-batches/{batch_id}/generate` is idempotent while queued/generating/completed.
+- `POST /generation-batches/{batch_id}/generate` atomically claims a queued or
+  failed batch, returns its Generating state immediately, and runs the slow
+  provider work in a background database session. It is idempotent while an
+  active generation is running or completed, and safely reclaims an interrupted
+  Generating batch after the configured provider-attempt time budget.
 - `PATCH /questions/{question_id}` accepts editable text, marks, options/correct option, and reference solution; teacher ownership required.
 - `POST /questions/{question_id}/regenerate` creates/returns one replacement Draft with the same scope/type/marks.
 - `POST /questions/{question_id}/approve` and `/reject` update status.

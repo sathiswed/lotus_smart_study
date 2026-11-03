@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -40,6 +41,7 @@ class BatchContext:
     difficulty: Difficulty
     style: Style
     scope: GenerationScope
+    updated_at: datetime
 
 
 @dataclass(slots=True)
@@ -105,6 +107,7 @@ class SqlGenerationRepository:
             marks=QuestionMarks.model_validate(batch.marks_config),
             difficulty=Difficulty(batch.difficulty.value),
             style=Style(batch.style.value),
+            updated_at=batch.updated_at,
             scope=GenerationScope(
                 curriculum_id=curriculum.id,
                 board=curriculum.board,

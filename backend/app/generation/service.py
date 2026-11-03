@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from .contracts import (
@@ -47,21 +48,55 @@ class GenerationService:
     provider: LLMProvider
     settings: GenerationSettings
 
-    async def generate_batch(self, batch_id: UUID, teacher_id: UUID) -> list[UUID]:
+    async def claim_batch(self, batch_id: UUID, teacher_id: UUID) -> bool:
         batch = await self.repository.get_batch(batch_id, teacher_id)
         if batch.status == "completed":
-            return await self.repository.list_batch_question_ids(batch.id)
+            return False
         if batch.status == "generating":
-            raise GenerationInProgressError("Generation batch is already running")
+            maximum_run_seconds = (
+                (self.settings.retry_count + 1) * self.settings.timeout_seconds
+            ) + 60
+            updated_at = batch.updated_at
+            if updated_at.tzinfo is None:
+                updated_at = updated_at.replace(tzinfo=UTC)
+            age_seconds = (datetime.now(UTC) - updated_at).total_seconds()
+            if age_seconds <= maximum_run_seconds:
+                return False
+            logger.warning(
+                "Recovering stale question generation batch: batch_id=%s age_seconds=%d",
+                batch.id,
+                int(age_seconds),
+            )
+            await self.repository.fail_batch(
+                batch.id,
+                "Generation was interrupted before completion and may be retried.",
+            )
+            batch = await self.repository.get_batch(batch_id, teacher_id)
         if batch.status not in {"queued", "failed"}:
             raise ValueError(f"Batch cannot generate from status {batch.status}")
 
-        await self.repository.mark_generating(
-            batch.id,
-            self.provider.provider_name,
-            self.provider.model_name,
-            self.settings.prompt_version,
-        )
+        try:
+            await self.repository.mark_generating(
+                batch.id,
+                self.provider.provider_name,
+                self.provider.model_name,
+                self.settings.prompt_version,
+            )
+        except ValueError:
+            current = await self.repository.get_batch(batch_id, teacher_id)
+            if current.status in {"generating", "completed"}:
+                return False
+            raise
+        return True
+
+    async def generate_claimed_batch(
+        self, batch_id: UUID, teacher_id: UUID
+    ) -> list[UUID]:
+        batch = await self.repository.get_batch(batch_id, teacher_id)
+        if batch.status == "completed":
+            return await self.repository.list_batch_question_ids(batch.id)
+        if batch.status != "generating":
+            raise ValueError(f"Claimed batch has invalid status {batch.status}")
         try:
             excerpts = await self.retriever.retrieve(batch.scope)
             prior = await self.repository.recent_question_texts(batch)
@@ -77,6 +112,15 @@ class GenerationService:
         except Exception as exc:
             await self.repository.fail_batch(batch.id, _safe_failure_reason(exc))
             raise
+
+    async def generate_batch(self, batch_id: UUID, teacher_id: UUID) -> list[UUID]:
+        claimed = await self.claim_batch(batch_id, teacher_id)
+        if not claimed:
+            batch = await self.repository.get_batch(batch_id, teacher_id)
+            if batch.status == "completed":
+                return await self.repository.list_batch_question_ids(batch.id)
+            raise GenerationInProgressError("Generation batch is already running")
+        return await self.generate_claimed_batch(batch_id, teacher_id)
 
     async def regenerate_question(
         self, question_id: UUID, teacher_id: UUID

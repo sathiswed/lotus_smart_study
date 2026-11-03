@@ -420,3 +420,18 @@ Shared contracts are approved and Stages 1-10 may proceed for Class 8. Verified 
   contracts through forward-only migration `0007_student_school_fields.py`.
 - No build, test, migration, server, or deployment was executed. The owner must
   apply migration `0007` and perform the documented manual workflow checks.
+
+### 2026-11-03 - Production generation timeout remediation
+
+- Removed the long OpenAI call from the lifetime of the browser/proxy request.
+  Generation now claims the batch transactionally, returns Generating
+  immediately, and completes through a separate backend database session while
+  the existing review page polls durable status.
+- Added idempotent active-batch handling and conservative stale-generation
+  recovery based on the configured provider timeout and total retry budget, so
+  a worker interruption cannot leave a batch permanently stuck in Generating.
+- Kept provider retry limits, structured-output validation, textbook scope,
+  diagnostic logging, and question-count/marks behavior unchanged. No prompt,
+  textbook content, credentials, or student data is written to the new
+  background boundary log.
+- No build, test, migration, server, provider call, or deployment was executed.
